@@ -1,0 +1,69 @@
+name: Update Homebrew Cask
+
+on:
+  workflow_dispatch:          # ручной запуск командой gh
+  schedule:
+    - cron: '0 */6 * * *'     # подстраховка: каждые 6 часов
+
+jobs:
+  update-cask:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout tap repository
+        uses: actions/checkout@v4
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Update cask version and SHA256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: Yi0027/Melodica
+          CASK_PATH: Casks/melodica.rb
+          ASSET_NAME: Melodica.dmg
+        run: |
+          set -euo pipefail
+
+          echo "Fetching latest release from $REPO..."
+          RELEASE_JSON=$(curl -sSL -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$REPO/releases")
+
+          #первый не-draft релиз (учитывая пре-релизы)
+          LATEST_TAG=$(echo "$RELEASE_JSON" | jq -r '.[] | select(.draft == false) | .tag_name' | head -n1)
+          if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then
+            echo "No valid release found"
+            exit 1
+          fi
+
+          VERSION="${LATEST_TAG#v}"
+          echo "Latest version: $VERSION"
+
+          DOWNLOAD_URL="https://github.com/$REPO/releases/download/$LATEST_TAG/$ASSET_NAME"
+          echo "Download URL: $DOWNLOAD_URL"
+
+          echo "Downloading $ASSET_NAME..."
+          curl -fsSL "$DOWNLOAD_URL" -o /tmp/app.dmg
+          SHA256=$(shasum -a 256 /tmp/app.dmg | awk '{print $1}')
+          echo "SHA256: $SHA256"
+
+          echo "Updating cask file: $CASK_PATH"
+          if [[ ! -f "$CASK_PATH" ]]; then
+            echo "Cask file not found at $CASK_PATH"
+            exit 1
+          fi
+
+          sed -i '' -E "s/version \"[^\"]*\"/version \"$VERSION\"/" "$CASK_PATH"
+          sed -i '' -E "s/sha256 \"[^\"]*\"/sha256 \"$SHA256\"/" "$CASK_PATH"
+
+          echo "Updated cask content:"
+          cat "$CASK_PATH"
+
+          if git diff --quiet "$CASK_PATH"; then
+            echo "No changes to commit"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add "$CASK_PATH"
+            git commit -m "Auto-update Melodica to $VERSION"
+            git push
+          fi
