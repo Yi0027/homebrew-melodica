@@ -24,6 +24,5 @@ cask "melodica" do
 
   postflight_steps do
     run "/usr/bin/xattr", args: ["-cr", "{{appdir}}/Melodica.app"], must_succeed: false
-    run "/usr/bin/codesign", args: ["--force", "--sign", "-", "{{appdir}}/Melodica.app"], must_succeed: false
   end
 end
