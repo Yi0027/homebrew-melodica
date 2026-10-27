@@ -1,8 +1,11 @@
 cask "melodica" do
-  version "1.4.3-pre"
-  sha256 "431cf21b67424d213e24343811f2a95f755dcc286961e035e9b76430765e9723"
+  arch arm: "AppleSilicon-arm64", intel: "Intel-x86_64"
 
-  url "https://github.com/Yi0027/Melodica/releases/download/v#{version}/Melodica.dmg"
+  version "1.5.4"
+  sha256 arm:   "ВСТАВЬТЕ_SHA256_ДЛЯ_ARM",
+         intel: "ВСТАВЬТЕ_SHA256_ДЛЯ_X86"
+
+  url "https://github.com/Yi0027/Melodica/releases/download/v#{version}/Melodica-#{version}-#{arch}.dmg"
   name "Melodica"
   desc "Audio player for macOS with two themes and advanced LRC support"
   homepage "https://github.com/Yi0027/Melodica"
