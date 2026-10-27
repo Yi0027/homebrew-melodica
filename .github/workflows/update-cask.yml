@@ -1,9 +1,9 @@
 name: Update Homebrew Cask
 
 on:
-  workflow_dispatch:          # ручной запуск командой gh
+  workflow_dispatch:
   schedule:
-    - cron: '0 */6 * * *'     # подстраховка: каждые 6 часов
+    - cron: '0 */6 * * *'
 
 jobs:
   update-cask:
@@ -20,7 +20,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: Yi0027/Melodica
           CASK_PATH: Casks/melodica.rb
-          ASSET_NAME: Melodica.dmg
         run: |
           set -euo pipefail
 
@@ -28,7 +27,7 @@ jobs:
           RELEASE_JSON=$(curl -sSL -H "Authorization: token $GITHUB_TOKEN" \
             "https://api.github.com/repos/$REPO/releases")
 
-          #первый не-draft релиз (учитывая пре-релизы)
+          # Первый не-draft релиз
           LATEST_TAG=$(echo "$RELEASE_JSON" | jq -r '.[] | select(.draft == false) | .tag_name' | head -n1)
           if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then
             echo "No valid release found"
@@ -38,22 +37,60 @@ jobs:
           VERSION="${LATEST_TAG#v}"
           echo "Latest version: $VERSION"
 
-          DOWNLOAD_URL="https://github.com/$REPO/releases/download/$LATEST_TAG/$ASSET_NAME"
-          echo "Download URL: $DOWNLOAD_URL"
+          # Имена файлов согласно скрипту export_releases.sh
+          ARM_ASSET="Melodica-${VERSION}-AppleSilicon-arm64.dmg"
+          INTEL_ASSET="Melodica-${VERSION}-Intel-x86_64.dmg"
 
-          echo "Downloading $ASSET_NAME..."
-          curl -fsSL "$DOWNLOAD_URL" -o /tmp/app.dmg
-          SHA256=$(shasum -a 256 /tmp/app.dmg | awk '{print $1}')
-          echo "SHA256: $SHA256"
+          ARM_URL="https://github.com/$REPO/releases/download/$LATEST_TAG/$ARM_ASSET"
+          INTEL_URL="https://github.com/$REPO/releases/download/$LATEST_TAG/$INTEL_ASSET"
 
-          echo "Updating cask file: $CASK_PATH"
-          if [[ ! -f "$CASK_PATH" ]]; then
-            echo "Cask file not found at $CASK_PATH"
-            exit 1
-          fi
+          echo "Downloading $ARM_ASSET..."
+          curl -fsSL "$ARM_URL" -o /tmp/arm.dmg
+          SHA256_ARM=$(shasum -a 256 /tmp/arm.dmg | awk '{print $1}')
+          echo "ARM SHA256: $SHA256_ARM"
 
-          sed -i '' -E "s/version \"[^\"]*\"/version \"$VERSION\"/" "$CASK_PATH"
-          sed -i '' -E "s/sha256 \"[^\"]*\"/sha256 \"$SHA256\"/" "$CASK_PATH"
+          echo "Downloading $INTEL_ASSET..."
+          curl -fsSL "$INTEL_URL" -o /tmp/intel.dmg
+          SHA256_INTEL=$(shasum -a 256 /tmp/intel.dmg | awk '{print $1}')
+          echo "Intel SHA256: $SHA256_INTEL"
+
+          echo "Rewriting cask file: $CASK_PATH"
+          cat <<EOF > "$CASK_PATH"
+          cask "melodica" do
+            arch arm: "AppleSilicon-arm64", intel: "Intel-x86_64"
+
+            version "$VERSION"
+            sha256 arm:   "$SHA256_ARM",
+                   intel: "$SHA256_INTEL"
+
+            url "https://github.com/$REPO/releases/download/v#{version}/Melodica-#{version}-#{arch}.dmg"
+            name "Melodica"
+            desc "Audio player for macOS with two themes and advanced LRC support"
+            homepage "https://github.com/$REPO"
+
+            livecheck do
+              url :url
+              strategy :github_releases do |json, regex|
+                json.map do |release|
+                  next if release["draft"]
+                  next if release["prerelease"] && !version.to_s.include?("-pre")
+                  match = release["tag_name"]&.match(regex)
+                  next unless match
+                  match[1]
+                end
+              end
+            end
+
+            app "Melodica.app"
+
+            postflight_steps do
+              run "/usr/bin/xattr", args: ["-cr", "{{appdir}}/Melodica.app"], must_succeed: false
+            end
+          end
+          EOF
+
+          # Убираем пробелы от отступа в EOF
+          sed -i '' -E 's/^[ ]{10}//' "$CASK_PATH"
 
           echo "Updated cask content:"
           cat "$CASK_PATH"
