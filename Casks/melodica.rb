@@ -2,8 +2,8 @@ cask "melodica" do
   arch arm: "AppleSilicon-arm64", intel: "Intel-x86_64"
 
   version "1.5.4"
-  sha256 arm:   "ВСТАВЬТЕ_SHA256_ДЛЯ_ARM",
-         intel: "ВСТАВЬТЕ_SHA256_ДЛЯ_X86"
+  sha256 arm:   "40ff5357512abbf68f60f9d492c59087b784f55e97ca7c21e5aa4ef02277bb52",
+         intel: "3fb2ddcbb3e3b0d0ee81ac65b52c237090792af23c238b03269d3502e9ea3a81"
 
   url "https://github.com/Yi0027/Melodica/releases/download/v#{version}/Melodica-#{version}-#{arch}.dmg"
   name "Melodica"
